@@ -279,6 +279,27 @@
     .cert-field-label { color: #718096; }
     .cert-field-value { color: #e2e8f0; font-family: monospace; word-break: break-all; }
 
+    /* Raw log card header */
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    .card-header h2 { margin-bottom: 0; }
+
+    .log-actions { display: flex; gap: 0.5rem; }
+    .log-actions button {
+      background: none;
+      border: 1px solid #374151;
+      border-radius: 4px;
+      color: #718096;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      cursor: pointer;
+    }
+    .log-actions button:hover { border-color: #4b5563; color: #a0aec0; }
+
     /* Raw log */
     details summary {
       cursor: pointer;
@@ -507,7 +528,13 @@
     </div>
 
     <div class="card" id="rawCard" style="display:none">
-      <h2>Raw JSSE Log</h2>
+      <div class="card-header">
+        <h2>Raw JSSE Log</h2>
+        <div class="log-actions">
+          <button type="button" id="copyLogBtn" onclick="copyLog()">Copy</button>
+          <button type="button" onclick="downloadLog()">Download</button>
+        </div>
+      </div>
       <details>
         <summary>Show raw debug output</summary>
         <pre id="rawLog"></pre>
@@ -692,6 +719,27 @@
   function extractCN(dn) {
     const m = dn && dn.match(/CN=([^,]+)/i);
     return m ? m[1] : null;
+  }
+
+  function copyLog() {
+    const text = document.getElementById('rawLog').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('copyLogBtn');
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = orig, 2000);
+    });
+  }
+
+  function downloadLog() {
+    const text = document.getElementById('rawLog').textContent;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'jsse-debug.log';
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function esc(str) {
