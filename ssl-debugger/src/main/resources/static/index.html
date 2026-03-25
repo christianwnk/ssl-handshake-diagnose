@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SSL/TLS Debugger</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1d2e;
+      border-bottom: 1px solid #2d3748;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #f7fafc;
+    }
+
+    header .badge {
+      background: #2563eb;
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+    }
+
+    .card {
+      background: #1a1d2e;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #718096;
+      margin-bottom: 1rem;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.75rem;
+      align-items: end;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: end;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .field label {
+      font-size: 0.8rem;
+      color: #a0aec0;
+      font-weight: 500;
+    }
+
+    .field input[type="text"],
+    .field input[type="number"],
+    .field input[type="password"] {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      padding: 0.5rem 0.75rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .field input:focus { border-color: #2563eb; }
+
+    .field input[type="file"] {
+      background: #0f1117;
+      border: 1px dashed #2d3748;
+      border-radius: 6px;
+      color: #a0aec0;
+      font-size: 0.85rem;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+    }
+
+    .truststore-section {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #2d3748;
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    button[type="submit"] {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.55rem 1.5rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+      height: fit-content;
+    }
+
+    button[type="submit"]:hover { background: #1d4ed8; }
+    button[type="submit"]:disabled { background: #374151; cursor: not-allowed; }
+
+    /* Status banner */
+    .banner {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .banner.success { background: #065f46; border: 1px solid #059669; color: #a7f3d0; }
+    .banner.error   { background: #7f1d1d; border: 1px solid #dc2626; color: #fca5a5; }
+
+    /* Spinner */
+    .spinner {
+      display: none;
+      align-items: center;
+      gap: 0.75rem;
+      color: #718096;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .spinner.active { display: flex; }
+
+    .spinner-icon {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #2d3748;
+      border-top-color: #2563eb;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Steps */
+    .steps-list { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+    }
+
+    .step-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #065f46;
+      color: #a7f3d0;
+      font-size: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .step-name {
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: #e2e8f0;
+    }
+
+    .step-details {
+      font-size: 0.8rem;
+      color: #718096;
+      white-space: pre-wrap;
+      margin-top: 0.2rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+
+    /* Session info */
+    .session-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.4rem 1rem;
+      font-size: 0.875rem;
+    }
+
+    .session-key { color: #718096; }
+    .session-val { color: #e2e8f0; font-family: monospace; }
+
+    /* Cert chain */
+    .cert-item {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      overflow: hidden;
+    }
+
+    .cert-header {
+      padding: 0.6rem 1rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.875rem;
+      user-select: none;
+    }
+
+    .cert-header:hover { background: #1a1d2e; }
+
+    .cert-index {
+      background: #374151;
+      color: #9ca3af;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      margin-right: 0.5rem;
+    }
+
+    .cert-body {
+      display: none;
+      padding: 0.75rem 1rem;
+      border-top: 1px solid #2d3748;
+    }
+
+    .cert-body.open { display: block; }
+
+    .cert-field {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 0.3rem;
+      font-size: 0.8rem;
+      margin-bottom: 0.3rem;
+    }
+
+    .cert-field-label { color: #718096; }
+    .cert-field-value { color: #e2e8f0; font-family: monospace; word-break: break-all; }
+
+    /* Raw log */
+    details summary {
+      cursor: pointer;
+      color: #718096;
+      font-size: 0.85rem;
+      padding: 0.5rem 0;
+      user-select: none;
+    }
+
+    details summary:hover { color: #a0aec0; }
+
+    details pre {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      padding: 1rem;
+      font-size: 0.75rem;
+      font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+      color: #9ca3af;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-top: 0.5rem;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    #results { display: none; }
+    #results.visible { display: block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>SSL/TLS Debugger</h1>
+  <span class="badge">Diagnostic</span>
+</header>
+
+<main>
+  <div class="card">
+    <h2>Connection</h2>
+    <form id="traceForm">
+      <div class="form-row">
+        <div class="field" style="flex:1">
+          <label for="hostname">Hostname</label>
+          <input type="text" id="hostname" name="hostname" placeholder="example.com" required>
+        </div>
+        <div class="field" style="width:100px">
+          <label for="port">Port</label>
+          <input type="number" id="port" name="port" value="443" min="1" max="65535" required>
+        </div>
+        <button type="submit" id="traceBtn">Trace</button>
+      </div>
+
+      <div class="truststore-section">
+        <div class="field">
+          <label for="truststore">Truststore (.jks / .p12) — optional</label>
+          <input type="file" id="truststore" name="truststore" accept=".jks,.p12,.pfx,.keystore">
+        </div>
+        <div class="field">
+          <label for="truststorePassword">Truststore password</label>
+          <input type="password" id="truststorePassword" name="truststorePassword" placeholder="optional">
+        </div>
+        <div class="field">
+          <label for="truststoreType">Type</label>
+          <select id="truststoreType" name="truststoreType"
+                  style="background:#0f1117;border:1px solid #2d3748;border-radius:6px;color:#e2e8f0;font-size:0.9rem;padding:0.5rem 0.75rem;">
+            <option value="JKS">JKS</option>
+            <option value="PKCS12">PKCS12</option>
+          </select>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="spinner" id="spinner">
+    <div class="spinner-icon"></div>
+    Performing SSL handshake…
+  </div>
+
+  <div id="results">
+    <div id="banner" class="banner"></div>
+
+    <div class="card" id="stepsCard" style="display:none">
+      <h2>Handshake Steps</h2>
+      <div class="steps-list" id="stepsList"></div>
+    </div>
+
+    <div class="card" id="sessionCard" style="display:none">
+      <h2>Session</h2>
+      <div class="session-grid" id="sessionGrid"></div>
+    </div>
+
+    <div class="card" id="certCard" style="display:none">
+      <h2>Certificate Chain</h2>
+      <div id="certChain"></div>
+    </div>
+
+    <div class="card" id="rawCard" style="display:none">
+      <h2>Raw JSSE Log</h2>
+      <details>
+        <summary>Show raw debug output</summary>
+        <pre id="rawLog"></pre>
+      </details>
+    </div>
+  </div>
+</main>
+
+<script>
+  const form = document.getElementById('traceForm');
+  const btn = document.getElementById('traceBtn');
+  const spinner = document.getElementById('spinner');
+  const results = document.getElementById('results');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await runTrace();
+  });
+
+  async function runTrace() {
+    btn.disabled = true;
+    spinner.classList.add('active');
+    results.classList.remove('visible');
+
+    const fd = new FormData(form);
+
+    try {
+      const res = await fetch('/api/trace', { method: 'POST', body: fd });
+      const data = await res.json();
+      render(data);
+    } catch (err) {
+      renderFatalError(err.message || 'Network error');
+    } finally {
+      btn.disabled = false;
+      spinner.classList.remove('active');
+    }
+  }
+
+  function render(data) {
+    results.classList.add('visible');
+
+    // Banner
+    const banner = document.getElementById('banner');
+    if (data.success) {
+      banner.className = 'banner success';
+      banner.textContent = '✓ Handshake completed successfully';
+    } else {
+      banner.className = 'banner error';
+      banner.textContent = '✗ ' + (data.error || 'Handshake failed');
+    }
+
+    // Steps
+    const stepsList = document.getElementById('stepsList');
+    const stepsCard = document.getElementById('stepsCard');
+    stepsList.innerHTML = '';
+    if (data.steps && data.steps.length > 0) {
+      stepsCard.style.display = '';
+      data.steps.forEach((step, i) => {
+        const el = document.createElement('div');
+        el.className = 'step';
+        el.innerHTML = `
+          <div class="step-icon">${i + 1}</div>
+          <div>
+            <div class="step-name">${esc(step.name)}</div>
+            ${step.details ? `<div class="step-details">${esc(step.details)}</div>` : ''}
+          </div>`;
+        stepsList.appendChild(el);
+      });
+    } else {
+      stepsCard.style.display = 'none';
+    }
+
+    // Session info
+    const sessionGrid = document.getElementById('sessionGrid');
+    const sessionCard = document.getElementById('sessionCard');
+    sessionGrid.innerHTML = '';
+    const sessionFields = [
+      ['Protocol', data.negotiatedProtocol],
+      ['Cipher Suite', data.negotiatedCipherSuite],
+      ['Duration', data.durationMs != null ? data.durationMs + ' ms' : null],
+    ];
+    const hasSession = sessionFields.some(([, v]) => v);
+    if (hasSession) {
+      sessionCard.style.display = '';
+      sessionFields.forEach(([k, v]) => {
+        if (v) {
+          sessionGrid.innerHTML +=
+            `<span class="session-key">${esc(k)}</span><span class="session-val">${esc(v.toString())}</span>`;
+        }
+      });
+    } else {
+      sessionCard.style.display = 'none';
+    }
+
+    // Certificate chain
+    const certChain = document.getElementById('certChain');
+    const certCard = document.getElementById('certCard');
+    certChain.innerHTML = '';
+    if (data.certificateChain && data.certificateChain.length > 0) {
+      certCard.style.display = '';
+      data.certificateChain.forEach(cert => {
+        const item = document.createElement('div');
+        item.className = 'cert-item';
+
+        const cn = extractCN(cert.subject) || cert.subject;
+        item.innerHTML = `
+          <div class="cert-header" onclick="this.nextElementSibling.classList.toggle('open')">
+            <span><span class="cert-index">${cert.index}</span>${esc(cn)}</span>
+            <span style="color:#4b5563;font-size:0.8rem">▼</span>
+          </div>
+          <div class="cert-body">
+            ${certField('Subject', cert.subject)}
+            ${certField('Issuer', cert.issuer)}
+            ${certField('Valid from', cert.notBefore)}
+            ${certField('Valid until', cert.notAfter)}
+            ${cert.sans && cert.sans.length ? certField('SANs', cert.sans.join(', ')) : ''}
+            ${certField('SHA-256', cert.fingerprint)}
+          </div>`;
+        certChain.appendChild(item);
+      });
+    } else {
+      certCard.style.display = 'none';
+    }
+
+    // Raw log
+    const rawCard = document.getElementById('rawCard');
+    const rawLog = document.getElementById('rawLog');
+    if (data.rawLog) {
+      rawCard.style.display = '';
+      rawLog.textContent = data.rawLog;
+    } else {
+      rawCard.style.display = 'none';
+    }
+  }
+
+  function renderFatalError(msg) {
+    results.classList.add('visible');
+    document.getElementById('banner').className = 'banner error';
+    document.getElementById('banner').textContent = '✗ ' + msg;
+    document.getElementById('stepsCard').style.display = 'none';
+    document.getElementById('sessionCard').style.display = 'none';
+    document.getElementById('certCard').style.display = 'none';
+    document.getElementById('rawCard').style.display = 'none';
+  }
+
+  function certField(label, value) {
+    if (!value) return '';
+    return `<div class="cert-field">
+      <span class="cert-field-label">${esc(label)}</span>
+      <span class="cert-field-value">${esc(value)}</span>
+    </div>`;
+  }
+
+  function extractCN(dn) {
+    const m = dn && dn.match(/CN=([^,]+)/i);
+    return m ? m[1] : null;
+  }
+
+  function esc(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+</body>
+</html>

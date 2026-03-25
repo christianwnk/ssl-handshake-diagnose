@@ -1,0 +1,13 @@
+plugins {
+    id 'buildlogic.java-common-conventions'
+    id 'org.springframework.boot' version '3.4.4'
+}
+
+dependencies {
+    implementation platform('org.springframework.boot:spring-boot-dependencies:3.4.4')
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+}
+
+springBoot {
+    mainClass = 'net.cwnk.ssldebugger.SslDebuggerApplication'
+}
