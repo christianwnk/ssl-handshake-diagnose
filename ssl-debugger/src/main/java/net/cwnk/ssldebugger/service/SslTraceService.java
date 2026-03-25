@@ -8,15 +8,15 @@ import net.cwnk.ssldebugger.model.SslTraceResult;
 import org.springframework.stereotype.Service;
 
 import javax.net.ssl.*;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
+import java.io.*;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.cert.X509Certificate;
 import java.util.*;
+import java.util.Base64;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -76,20 +76,22 @@ public class SslTraceService {
         AtomicReference<String> cipherSuite = new AtomicReference<>();
         String connectError = null;
 
-        try (SSLSocket socket = (SSLSocket) sslContext.getSocketFactory().createSocket()) {
-            socket.connect(new InetSocketAddress(request.getHostname(), request.getPort()), CONNECT_TIMEOUT_MS);
-            socket.setSoTimeout(CONNECT_TIMEOUT_MS);
-            if (request.getEnabledProtocols() != null && !request.getEnabledProtocols().isEmpty()) {
-                socket.setEnabledProtocols(request.getEnabledProtocols().toArray(new String[0]));
+        try {
+            Socket tunnel = connectSocket(request);
+            try (SSLSocket socket = (SSLSocket) sslContext.getSocketFactory()
+                    .createSocket(tunnel, request.getHostname(), request.getPort(), true)) {
+                if (request.getEnabledProtocols() != null && !request.getEnabledProtocols().isEmpty()) {
+                    socket.setEnabledProtocols(request.getEnabledProtocols().toArray(new String[0]));
+                }
+                if (request.getEnabledCipherSuites() != null && !request.getEnabledCipherSuites().isEmpty()) {
+                    socket.setEnabledCipherSuites(request.getEnabledCipherSuites().toArray(new String[0]));
+                }
+                socket.addHandshakeCompletedListener(event -> {
+                    protocol.set(event.getSession().getProtocol());
+                    cipherSuite.set(event.getCipherSuite());
+                });
+                socket.startHandshake();
             }
-            if (request.getEnabledCipherSuites() != null && !request.getEnabledCipherSuites().isEmpty()) {
-                socket.setEnabledCipherSuites(request.getEnabledCipherSuites().toArray(new String[0]));
-            }
-            socket.addHandshakeCompletedListener(event -> {
-                protocol.set(event.getSession().getProtocol());
-                cipherSuite.set(event.getCipherSuite());
-            });
-            socket.startHandshake();
         } catch (Exception e) {
             connectError = buildErrorMessage(e, capturingTm);
         }
@@ -209,6 +211,53 @@ public class SslTraceService {
             Thread.currentThread().interrupt();
             return false;
         }
+    }
+
+    private Socket connectSocket(SslTraceRequest request) throws IOException {
+        if (request.getProxyHost() == null || request.getProxyHost().isBlank()) {
+            Socket s = new Socket();
+            s.connect(new InetSocketAddress(request.getHostname(), request.getPort()), CONNECT_TIMEOUT_MS);
+            s.setSoTimeout(CONNECT_TIMEOUT_MS);
+            return s;
+        }
+        // Open plain TCP connection to proxy
+        Socket proxy = new Socket();
+        proxy.connect(new InetSocketAddress(request.getProxyHost(), request.getProxyPort()), CONNECT_TIMEOUT_MS);
+        proxy.setSoTimeout(CONNECT_TIMEOUT_MS);
+
+        // Send HTTP CONNECT request
+        StringBuilder connectReq = new StringBuilder()
+                .append("CONNECT ").append(request.getHostname()).append(':').append(request.getPort()).append(" HTTP/1.1\r\n")
+                .append("Host: ").append(request.getHostname()).append(':').append(request.getPort()).append("\r\n");
+        if (request.getProxyUsername() != null && !request.getProxyUsername().isBlank()) {
+            String creds = request.getProxyUsername() + ":"
+                    + (request.getProxyPassword() != null ? request.getProxyPassword() : "");
+            String encoded = Base64.getEncoder().encodeToString(creds.getBytes(StandardCharsets.UTF_8));
+            connectReq.append("Proxy-Authorization: Basic ").append(encoded).append("\r\n");
+        }
+        connectReq.append("\r\n");
+        proxy.getOutputStream().write(connectReq.toString().getBytes(StandardCharsets.UTF_8));
+        proxy.getOutputStream().flush();
+
+        // Read proxy response (until \r\n\r\n)
+        String response = readProxyResponse(proxy);
+        if (!response.startsWith("HTTP/") || !response.contains(" 2")) {
+            proxy.close();
+            throw new IOException("Proxy CONNECT failed: "
+                    + response.lines().findFirst().orElse("(empty response)"));
+        }
+        return proxy;
+    }
+
+    private String readProxyResponse(Socket proxy) throws IOException {
+        InputStream in = proxy.getInputStream();
+        StringBuilder sb = new StringBuilder();
+        int b;
+        while ((b = in.read()) != -1) {
+            sb.append((char) b);
+            if (sb.toString().endsWith("\r\n\r\n")) break;
+        }
+        return sb.toString();
     }
 
     private long elapsed(long startMs) {

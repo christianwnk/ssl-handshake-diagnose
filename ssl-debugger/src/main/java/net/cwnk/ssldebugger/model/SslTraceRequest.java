@@ -10,6 +10,10 @@ public class SslTraceRequest {
     private String truststoreType = "JKS";
     private List<String> enabledProtocols;    // null = use JVM defaults
     private List<String> enabledCipherSuites; // null = use JVM defaults
+    private String proxyHost;
+    private int proxyPort;
+    private String proxyUsername;
+    private String proxyPassword;
 
     public String getHostname() { return hostname; }
     public void setHostname(String hostname) { this.hostname = hostname; }
@@ -31,4 +35,16 @@ public class SslTraceRequest {
 
     public List<String> getEnabledCipherSuites() { return enabledCipherSuites; }
     public void setEnabledCipherSuites(List<String> enabledCipherSuites) { this.enabledCipherSuites = enabledCipherSuites; }
+
+    public String getProxyHost() { return proxyHost; }
+    public void setProxyHost(String proxyHost) { this.proxyHost = proxyHost; }
+
+    public int getProxyPort() { return proxyPort; }
+    public void setProxyPort(int proxyPort) { this.proxyPort = proxyPort; }
+
+    public String getProxyUsername() { return proxyUsername; }
+    public void setProxyUsername(String proxyUsername) { this.proxyUsername = proxyUsername; }
+
+    public String getProxyPassword() { return proxyPassword; }
+    public void setProxyPassword(String proxyPassword) { this.proxyPassword = proxyPassword; }
 }

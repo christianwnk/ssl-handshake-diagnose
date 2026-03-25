@@ -44,7 +44,11 @@ public class SslTraceController {
             @RequestParam(required = false) String truststorePassword,
             @RequestParam(required = false, defaultValue = "JKS") String truststoreType,
             @RequestParam(required = false) List<String> protocols,
-            @RequestParam(required = false) List<String> cipherSuites
+            @RequestParam(required = false) List<String> cipherSuites,
+            @RequestParam(required = false) String proxyHost,
+            @RequestParam(required = false, defaultValue = "0") int proxyPort,
+            @RequestParam(required = false) String proxyUsername,
+            @RequestParam(required = false) String proxyPassword
     ) throws IOException {
 
         if (hostname == null || hostname.isBlank()) {
@@ -68,6 +72,12 @@ public class SslTraceController {
         }
         if (cipherSuites != null && !cipherSuites.isEmpty()) {
             request.setEnabledCipherSuites(cipherSuites);
+        }
+        if (proxyHost != null && !proxyHost.isBlank()) {
+            request.setProxyHost(proxyHost.trim());
+            request.setProxyPort(proxyPort);
+            request.setProxyUsername(proxyUsername);
+            request.setProxyPassword(proxyPassword);
         }
 
         SslTraceResult result = sslTraceService.trace(request);

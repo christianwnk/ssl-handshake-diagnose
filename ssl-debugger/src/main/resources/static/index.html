@@ -472,6 +472,28 @@
         </div>
       </div>
 
+      <details class="tls-settings">
+        <summary>Proxy (optional)</summary>
+        <div class="truststore-section" style="padding-top:0.75rem">
+          <div class="field" style="flex:1">
+            <label for="proxyHost">Proxy host</label>
+            <input type="text" id="proxyHost" name="proxyHost" placeholder="proxy.example.com">
+          </div>
+          <div class="field" style="width:100px">
+            <label for="proxyPort">Proxy port</label>
+            <input type="number" id="proxyPort" name="proxyPort" placeholder="8080" min="1" max="65535">
+          </div>
+          <div class="field">
+            <label for="proxyUsername">Username</label>
+            <input type="text" id="proxyUsername" name="proxyUsername" placeholder="optional">
+          </div>
+          <div class="field">
+            <label for="proxyPassword">Password</label>
+            <input type="password" id="proxyPassword" name="proxyPassword" placeholder="optional">
+          </div>
+        </div>
+      </details>
+
       <details class="tls-settings" id="tlsSettings">
         <summary>TLS Settings</summary>
         <div class="tls-settings-grid">
