@@ -308,6 +308,105 @@
 
     #results { display: none; }
     #results.visible { display: block; }
+
+    /* TLS Settings section */
+    .tls-settings {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #2d3748;
+    }
+
+    .tls-settings summary {
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: #a0aec0;
+      font-weight: 500;
+      user-select: none;
+      padding: 0.1rem 0;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .tls-settings summary:hover { color: #e2e8f0; }
+
+    .tls-settings summary::before {
+      content: '▶';
+      font-size: 0.65rem;
+      transition: transform 0.15s;
+    }
+
+    .tls-settings[open] summary::before { transform: rotate(90deg); }
+
+    .tls-settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 0.75rem;
+    }
+
+    .checkbox-group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.4rem;
+    }
+
+    .checkbox-group-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #718096;
+    }
+
+    .checkbox-group-actions {
+      display: flex;
+      gap: 0.4rem;
+    }
+
+    .checkbox-group-actions button {
+      background: none;
+      border: 1px solid #374151;
+      border-radius: 4px;
+      color: #718096;
+      font-size: 0.7rem;
+      padding: 0.1rem 0.4rem;
+      cursor: pointer;
+    }
+
+    .checkbox-group-actions button:hover { border-color: #4b5563; color: #a0aec0; }
+
+    .checkbox-list {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: #a0aec0;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      cursor: pointer;
+    }
+
+    .checkbox-item input[type="checkbox"] {
+      accent-color: #2563eb;
+      width: 13px;
+      height: 13px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -351,6 +450,36 @@
           </select>
         </div>
       </div>
+
+      <details class="tls-settings" id="tlsSettings">
+        <summary>TLS Settings</summary>
+        <div class="tls-settings-grid">
+          <div>
+            <div class="checkbox-group-header">
+              <span class="checkbox-group-label">Protocols</span>
+              <div class="checkbox-group-actions">
+                <button type="button" onclick="setAll('protocols', true)">All</button>
+                <button type="button" onclick="setAll('protocols', false)">None</button>
+              </div>
+            </div>
+            <div class="checkbox-list" id="protocolList">
+              <span style="color:#4b5563;font-size:0.8rem">Loading…</span>
+            </div>
+          </div>
+          <div>
+            <div class="checkbox-group-header">
+              <span class="checkbox-group-label">Cipher Suites</span>
+              <div class="checkbox-group-actions">
+                <button type="button" onclick="setAll('cipherSuites', true)">All</button>
+                <button type="button" onclick="setAll('cipherSuites', false)">None</button>
+              </div>
+            </div>
+            <div class="checkbox-list" id="cipherList">
+              <span style="color:#4b5563;font-size:0.8rem">Loading…</span>
+            </div>
+          </div>
+        </div>
+      </details>
     </form>
   </div>
 
@@ -392,6 +521,34 @@
   const btn = document.getElementById('traceBtn');
   const spinner = document.getElementById('spinner');
   const results = document.getElementById('results');
+
+  // Load supported protocols and cipher suites from the backend on page load
+  (async () => {
+    try {
+      const res = await fetch('/api/capabilities');
+      const caps = await res.json();
+      populateCheckboxes('protocolList', 'protocols', caps.protocols);
+      populateCheckboxes('cipherList', 'cipherSuites', caps.cipherSuites);
+    } catch (e) {
+      document.getElementById('protocolList').textContent = 'Failed to load';
+      document.getElementById('cipherList').textContent = 'Failed to load';
+    }
+  })();
+
+  function populateCheckboxes(containerId, name, values) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    values.forEach(val => {
+      const label = document.createElement('label');
+      label.className = 'checkbox-item';
+      label.innerHTML = `<input type="checkbox" name="${name}" value="${esc(val)}" checked> ${esc(val)}`;
+      container.appendChild(label);
+    });
+  }
+
+  function setAll(name, checked) {
+    document.querySelectorAll(`input[name="${name}"]`).forEach(cb => cb.checked = checked);
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();

@@ -79,6 +79,12 @@ public class SslTraceService {
         try (SSLSocket socket = (SSLSocket) sslContext.getSocketFactory().createSocket()) {
             socket.connect(new InetSocketAddress(request.getHostname(), request.getPort()), CONNECT_TIMEOUT_MS);
             socket.setSoTimeout(CONNECT_TIMEOUT_MS);
+            if (request.getEnabledProtocols() != null && !request.getEnabledProtocols().isEmpty()) {
+                socket.setEnabledProtocols(request.getEnabledProtocols().toArray(new String[0]));
+            }
+            if (request.getEnabledCipherSuites() != null && !request.getEnabledCipherSuites().isEmpty()) {
+                socket.setEnabledCipherSuites(request.getEnabledCipherSuites().toArray(new String[0]));
+            }
             socket.addHandshakeCompletedListener(event -> {
                 protocol.set(event.getSession().getProtocol());
                 cipherSuite.set(event.getCipherSuite());

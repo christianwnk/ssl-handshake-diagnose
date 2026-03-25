@@ -8,16 +8,32 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api")
 public class SslTraceController {
 
+    record CapabilitiesResponse(List<String> protocols, List<String> cipherSuites) {}
+
     private final SslTraceService sslTraceService;
 
     public SslTraceController(SslTraceService sslTraceService) {
         this.sslTraceService = sslTraceService;
+    }
+
+    @GetMapping("/capabilities")
+    public ResponseEntity<CapabilitiesResponse> capabilities() throws IOException {
+        try (SSLSocket socket = (SSLSocket) SSLSocketFactory.getDefault().createSocket()) {
+            return ResponseEntity.ok(new CapabilitiesResponse(
+                    Arrays.asList(socket.getSupportedProtocols()),
+                    Arrays.asList(socket.getSupportedCipherSuites())
+            ));
+        }
     }
 
     @PostMapping(value = "/trace", consumes = "multipart/form-data")
@@ -26,7 +42,9 @@ public class SslTraceController {
             @RequestParam int port,
             @RequestParam(required = false) MultipartFile truststore,
             @RequestParam(required = false) String truststorePassword,
-            @RequestParam(required = false, defaultValue = "JKS") String truststoreType
+            @RequestParam(required = false, defaultValue = "JKS") String truststoreType,
+            @RequestParam(required = false) List<String> protocols,
+            @RequestParam(required = false) List<String> cipherSuites
     ) throws IOException {
 
         if (hostname == null || hostname.isBlank()) {
@@ -44,6 +62,12 @@ public class SslTraceController {
 
         if (truststore != null && !truststore.isEmpty()) {
             request.setTruststoreBytes(truststore.getBytes());
+        }
+        if (protocols != null && !protocols.isEmpty()) {
+            request.setEnabledProtocols(protocols);
+        }
+        if (cipherSuites != null && !cipherSuites.isEmpty()) {
+            request.setEnabledCipherSuites(cipherSuites);
         }
 
         SslTraceResult result = sslTraceService.trace(request);
