@@ -11,4 +11,4 @@ plugins {
 }
 
 rootProject.name = 'java-ssl-debug'
-include('app', 'list', 'utilities', 'ssl-debugger')
+include('ssl-debugger')
