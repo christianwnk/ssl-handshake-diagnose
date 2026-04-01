@@ -2,6 +2,7 @@ package net.cwnk.ssldebugger.service;
 
 import jakarta.annotation.PostConstruct;
 import net.cwnk.ssldebugger.model.CertInfo;
+import net.cwnk.ssldebugger.model.ErrorDiagnosis;
 import net.cwnk.ssldebugger.model.HandshakeStep;
 import net.cwnk.ssldebugger.model.SslTraceRequest;
 import net.cwnk.ssldebugger.model.SslTraceResult;
@@ -29,6 +30,7 @@ public class SslTraceService {
 
     private final Semaphore semaphore = new Semaphore(1);
     private final SslDebugOutputParser parser = new SslDebugOutputParser();
+    private final SslErrorDiagnosisService diagnosisService = new SslErrorDiagnosisService();
 
     @PostConstruct
     public void init() {
@@ -74,7 +76,7 @@ public class SslTraceService {
 
         AtomicReference<String> protocol = new AtomicReference<>();
         AtomicReference<String> cipherSuite = new AtomicReference<>();
-        String connectError = null;
+        Exception handshakeException = null;
 
         try {
             Socket tunnel = connectSocket(request);
@@ -93,12 +95,21 @@ public class SslTraceService {
                 socket.startHandshake();
             }
         } catch (Exception e) {
-            connectError = buildErrorMessage(e, capturingTm);
+            handshakeException = e;
         }
 
-        // Flush and restore stderr before reading buffer
+        // Flush and read buffer before processing errors so diagnosis can inspect the JSSE log
         System.err.flush();
         String rawLog = captureBuffer.toString(StandardCharsets.UTF_8);
+
+        String connectError = null;
+        ErrorDiagnosis diagnosis = null;
+        if (handshakeException != null) {
+            connectError = buildErrorMessage(handshakeException, capturingTm);
+            diagnosis = diagnosisService.diagnose(
+                    handshakeException, capturingTm.getCapturedChain(), rawLog,
+                    request.getHostname(), request.getPort());
+        }
 
         List<HandshakeStep> steps = parser.parse(rawLog);
         List<CertInfo> certChain = buildCertChain(capturingTm.getCapturedChain());
@@ -107,6 +118,7 @@ public class SslTraceService {
         return SslTraceResult.builder()
                 .success(success)
                 .error(connectError)
+                .diagnosis(diagnosis)
                 .steps(steps)
                 .rawLog(rawLog)
                 .certificateChain(certChain)
