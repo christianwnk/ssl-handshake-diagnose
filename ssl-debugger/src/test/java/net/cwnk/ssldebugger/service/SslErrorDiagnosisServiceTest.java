@@ -8,6 +8,10 @@ import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.security.cert.CertPathBuilderException;
 import java.security.cert.CertificateExpiredException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
+import java.io.ByteArrayInputStream;
+import java.util.Base64;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -59,10 +63,13 @@ class SslErrorDiagnosisServiceTest {
     }
 
     @Test
-    void protocolMismatchViaRawLog() {
+    void genericHandshakeFailureInLogFallsBackNotProtocol() {
+        // A bare handshake_failure alert without specific message should fall through to fallback,
+        // not be misclassified as protocol mismatch (the signal was removed as too broad)
         var ex = new SSLHandshakeException("Remote host terminated the handshake");
         ErrorDiagnosis d = service.diagnose(ex, null, "received fatal alert: handshake_failure", "example.com", 443);
-        assertTrue(d.cause().contains("protocol"));
+        assertFalse(d.cause().contains("protocol version"),
+                "Expected fallback, not protocol mismatch, but got: " + d.cause());
     }
 
     @Test
@@ -113,6 +120,34 @@ class SslErrorDiagnosisServiceTest {
         ErrorDiagnosis d = service.diagnose(ex, null, "", "example.com", 443);
         assertTrue(d.cause().contains("proxy") || d.cause().contains("CONNECT"));
         assertTrue(d.remediation().contains("proxy") || d.remediation().contains("Proxy"));
+    }
+
+    @Test
+    void selfSignedCertDetectedViaCertChain() throws Exception {
+        // Self-signed cert: subject == issuer (CN=test,O=Test,C=DE), generated with keytool
+        String der =
+            "MIIC+TCCAeGgAwIBAgIIRyFS9KeGBeYwDQYJKoZIhvcNAQEMBQAwKzELMAkGA1UEBhMCREUxDTAL" +
+            "BgNVBAoTBFRlc3QxDTALBgNVBAMTBHRlc3QwHhcNMjYwNDAxMjA1NjQyWhcNMzYwMzI5MjA1NjQy" +
+            "WjArMQswCQYDVQQGEwJERTENMAsGA1UEChMEVGVzdDENMAsGA1UEAxMEdGVzdDCCASIwDQYJKoZI" +
+            "hvcNAQEBBQADggEPADCCAQoCggEBAL4UsLs7OfnydPufAaNaRtpn9pa3Pn00TvlrtaFvtE0DPzkR" +
+            "m0LmZpJaCYicMsdTZ+p8vYlRq4i3NBVHkYshx92eSjVgR7FJwBKMgGbzMtQT/KFsgcPZFzFRanG" +
+            "Y908MfionxnMXujvX47gLd8TJQ4+AQG4J95xYYopJOg1dc9dPdUK2AQpJf7KYMdoTJexlX3PGQo" +
+            "pW3cg1LXMI2I9ZI854RtRmGyQNdB5uqhHU8tZvVoxPgpw0KpSHVfzOE4qwdF5jVe1LIclA8Lp6S" +
+            "imyea8lExqLyFJGE62dKRQfHu3qJInK+hrgvxsbjH2pe8DBUQeu63wsQIyF8wTRw/JVh3kCAwEA" +
+            "AaMhMB8wHQYDVR0OBBYEFLQ46OFPCASpmQDFPNZK3BCpETe9MA0GCSqGSIb3DQEBDAUAA4IBAQC5" +
+            "uCYW7w9xMqDcI59cUBLp9TiRp6xEKB8ub78xK9iFl2RDW9JXvjV344UWE6rz0f+UASjW4DMovdO" +
+            "+/F0aUxJHlksrtXIm3uDn4ubZeWxtQTPY2Jh9VYWEHsXZ1CcAjIt15u9nz2K/JmELFql/L6il4u" +
+            "ng3NtVbe2O0sZDVF29ZXCJbD9LKq6y21sLZAvM2fnIBDQBFteozai1TFkxElWUWYljXKX1H63Ze" +
+            "Mr7/3Wr7xsEe5pS+0WEYMy0HEmjopOKGYhOuwYmTLWR7CwlHYSlMAJjdfkcYvUYbAanamG8WNB1" +
+            "wPiuuBwBnWzwF6NRHT503grgZigll0G/CAI060Y8";
+        byte[] certBytes = Base64.getDecoder().decode(der.replaceAll("\\s+", ""));
+        X509Certificate cert = (X509Certificate) CertificateFactory.getInstance("X.509")
+                .generateCertificate(new ByteArrayInputStream(certBytes));
+
+        var ex = new SSLHandshakeException("PKIX path building failed");
+        ErrorDiagnosis d = service.diagnose(ex, new X509Certificate[]{cert}, "", "test.example.com", 443);
+        assertTrue(d.cause().toLowerCase().contains("self-signed"),
+                "Expected self-signed diagnosis but got: " + d.cause());
     }
 
     @Test

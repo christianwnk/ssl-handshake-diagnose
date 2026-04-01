@@ -7,8 +7,13 @@ import java.net.SocketTimeoutException;
 import java.security.cert.CertPathBuilderException;
 import java.security.cert.CertificateExpiredException;
 import java.security.cert.X509Certificate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 public class SslErrorDiagnosisService {
+
+    private static final DateTimeFormatter DATE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
 
     public ErrorDiagnosis diagnose(Exception exception, X509Certificate[] chain,
                                    String rawLog, String hostname, int port) {
@@ -93,10 +98,9 @@ public class SslErrorDiagnosisService {
             );
         }
 
-        // Rule 3: Hostname mismatch
+        // Rule 3: Hostname mismatch — use precise JSSE message strings to avoid false matches
         if (allMessages.contains("no name matching")
                 || allMessages.contains("no subject alternative")
-                || allMessages.contains("hostname")
                 || allMessages.contains("doesn't match")) {
             return new ErrorDiagnosis(
                 "The hostname you are connecting to (" + hostname + ") does not match any name " +
@@ -121,26 +125,25 @@ public class SslErrorDiagnosisService {
             );
         }
 
-        // Rule 4: Protocol version mismatch
-        if (allMessages.contains("no protocols in common")
-                || allMessages.contains("no appropriate protocol")
-                || log.contains("handshake_failure")) {
-            return new ErrorDiagnosis(
-                "The client and server could not agree on a TLS protocol version. The server may only " +
-                    "support older versions (e.g. TLS 1.0 or 1.1) that this client has disabled, or vice versa.",
-                "In the TLS Settings panel, try enabling older protocol versions (TLSv1.1, TLSv1) and " +
-                    "re-run. Note: enabling deprecated protocols is a security risk and should only be done " +
-                    "for diagnosis."
-            );
-        }
-
-        // Rule 5: Cipher suite mismatch
+        // Rule 5: Cipher suite mismatch (checked before protocol mismatch — more specific signal)
         if (allMessages.contains("no cipher suites in common")) {
             return new ErrorDiagnosis(
                 "The client and server have no cipher suites in common. The server may require cipher " +
                     "suites that are disabled in this JVM's security policy.",
                 "In the TLS Settings panel, enable additional cipher suites and retry. If the server " +
                     "requires weak ciphers (e.g. export-grade or RC4), a security policy update may be needed."
+            );
+        }
+
+        // Rule 4: Protocol version mismatch
+        if (allMessages.contains("no protocols in common")
+                || allMessages.contains("no appropriate protocol")) {
+            return new ErrorDiagnosis(
+                "The client and server could not agree on a TLS protocol version. The server may only " +
+                    "support older versions (e.g. TLS 1.0 or 1.1) that this client has disabled, or vice versa.",
+                "In the TLS Settings panel, try enabling older protocol versions (TLSv1.1, TLSv1) and " +
+                    "re-run. Note: enabling deprecated protocols is a security risk and should only be done " +
+                    "for diagnosis."
             );
         }
 
@@ -154,7 +157,8 @@ public class SslErrorDiagnosisService {
 
     private String expiryDate(X509Certificate[] chain) {
         if (chain != null && chain.length > 0) {
-            return " Its validity period ended on " + chain[0].getNotAfter() + ".";
+            String date = DATE_FORMAT.format(chain[0].getNotAfter().toInstant());
+            return " Its validity period ended on " + date + " (UTC).";
         }
         return "";
     }
