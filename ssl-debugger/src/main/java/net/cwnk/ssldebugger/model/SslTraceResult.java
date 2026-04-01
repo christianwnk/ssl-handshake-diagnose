@@ -5,6 +5,7 @@ import java.util.List;
 public class SslTraceResult {
     private final boolean success;
     private final String error;
+    private final ErrorDiagnosis diagnosis;
     private final List<HandshakeStep> steps;
     private final String rawLog;
     private final List<CertInfo> certificateChain;
@@ -15,6 +16,7 @@ public class SslTraceResult {
     private SslTraceResult(Builder b) {
         this.success = b.success;
         this.error = b.error;
+        this.diagnosis = b.diagnosis;
         this.steps = b.steps;
         this.rawLog = b.rawLog;
         this.certificateChain = b.certificateChain;
@@ -25,6 +27,7 @@ public class SslTraceResult {
 
     public boolean isSuccess() { return success; }
     public String getError() { return error; }
+    public ErrorDiagnosis getDiagnosis() { return diagnosis; }
     public List<HandshakeStep> getSteps() { return steps; }
     public String getRawLog() { return rawLog; }
     public List<CertInfo> getCertificateChain() { return certificateChain; }
@@ -37,6 +40,7 @@ public class SslTraceResult {
     public static class Builder {
         private boolean success;
         private String error;
+        private ErrorDiagnosis diagnosis;
         private List<HandshakeStep> steps = List.of();
         private String rawLog = "";
         private List<CertInfo> certificateChain = List.of();
@@ -46,6 +50,7 @@ public class SslTraceResult {
 
         public Builder success(boolean success) { this.success = success; return this; }
         public Builder error(String error) { this.error = error; return this; }
+        public Builder diagnosis(ErrorDiagnosis diagnosis) { this.diagnosis = diagnosis; return this; }
         public Builder steps(List<HandshakeStep> steps) { this.steps = steps; return this; }
         public Builder rawLog(String rawLog) { this.rawLog = rawLog; return this; }
         public Builder certificateChain(List<CertInfo> chain) { this.certificateChain = chain; return this; }
